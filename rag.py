@@ -10,6 +10,7 @@ import os
 from pdf2image import convert_from_path
 from PIL import Image
 import io
+import base64
 
 # 保留原有的 initialize_index 函數
 def initialize_index():
@@ -109,15 +110,31 @@ def generate_pdf_thumbnail(file_path, page_number):
     if images:
         img = images[0]
         img.thumbnail((300, 300))  # 調整縮圖大小
-        img_byte_arr = io.BytesIO()
-        img.save(img_byte_arr, format='PNG')
-        img_byte_arr = img_byte_arr.getvalue()
-        return img_byte_arr
+        return img
     return None
+
+# 新增函數：將圖片轉換為 base64 編碼
+def img_to_base64(img):
+    buffered = io.BytesIO()
+    img.save(buffered, format="PNG")
+    return base64.b64encode(buffered.getvalue()).decode()
+
+# 新增函數：生成可縮放的圖片 HTML
+def get_zoomable_image_html(img, caption):
+    img_base64 = img_to_base64(img)
+    return f"""
+    <figure>
+        <img src="data:image/png;base64,{img_base64}" 
+             alt="{caption}" 
+             style="cursor: zoom-in;" 
+             onclick="window.open(this.src)">
+        <figcaption>{caption}</figcaption>
+    </figure>
+    """
 
 # 修改 Streamlit 應用主體
 def main():
-    st.set_page_config(page_title="RAG 對話機器人", layout="wide")
+    st.set_page_config(page_title="檢修助手", layout="wide")
     
     # 頁面標題
     st.title("RAG 對話機器人")
@@ -144,6 +161,22 @@ def main():
         index, query_engine = load_index_and_engine()
         st.session_state.index = index
         st.session_state.query_engine = query_engine
+
+    # 顯示歡迎信息和建議查詢內容
+    if not st.session_state.messages:
+        st.markdown("""
+        ## 歡迎使用 RAG 對話機器人！
+        
+        您可以詢問任何關於上傳文檔的問題。以下是一些建議的查詢內容：
+        """)
+        suggestions = [
+            "這些文檔主要討論了哪些主題？",
+            "文檔中有哪些關鍵概念？",
+            "能總結一下文檔的主要觀點嗎？"
+        ]
+        for suggestion in suggestions:
+            if st.button(suggestion):
+                st.session_state.messages.append({"role": "user", "content": suggestion})
 
     # 顯示聊天歷史
     for message in st.session_state.messages:
@@ -182,7 +215,8 @@ def main():
                         page_number = int(page_label)
                         thumbnail = generate_pdf_thumbnail(file_path, page_number)
                         if thumbnail:
-                            st.image(thumbnail, caption=f"{file_name}, 頁碼: {page_label}", width=300)
+                            caption = f"{file_name}, 頁碼: {page_label}"
+                            st.markdown(get_zoomable_image_html(thumbnail, caption), unsafe_allow_html=True)
                     except ValueError:
                         st.write(f"無法生成縮圖：{file_name}, 頁碼: {page_label}")
                 
