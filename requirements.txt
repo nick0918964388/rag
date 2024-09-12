@@ -7,3 +7,4 @@ flask
 chromadb
 huggingface_hub
 together
+flask
