@@ -13,6 +13,31 @@ import base64
 import requests
 import json
 
+# 定義 OllamaLLM 類
+from llama_index.core.llms import (
+    CustomLLM,
+    CompletionResponse,
+    CompletionResponseGen,
+    LLMMetadata,
+)
+from typing import Any, Optional
+
+class OllamaLLM(CustomLLM):
+    def __init__(self, model: str = "reflection"):
+        self.model = model
+        super().__init__()
+
+    def complete(self, prompt: str, **kwargs: Any) -> CompletionResponse:
+        response = generate_ollama_response(prompt)
+        return CompletionResponse(text=response)
+
+    def stream_complete(self, prompt: str, **kwargs: Any) -> CompletionResponseGen:
+        raise NotImplementedError("Streaming is not implemented for OllamaLLM")
+
+    @property
+    def metadata(self) -> LLMMetadata:
+        return LLMMetadata(model_name="Ollama", model_version=self.model)
+
 # 保留原有的 initialize_index 函數
 def initialize_index():
     # 初始化 Chroma 数据库客户端
