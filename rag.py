@@ -199,8 +199,20 @@ def handle_ai_response(prompt):
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
         
-        # 顯示 "AI 思考中" 的 loading 效果
-        loading_placeholder = message_placeholder.markdown("AI 思考中...")
+        # 顯示 "AI 思考中" 的 loading 效果，包含等待中的圖標
+        loading_html = """
+        <div style="display: flex; align-items: center;">
+            <div class="loading-spinner" style="border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; margin-right: 10px;"></div>
+            <span>AI 思考中...</span>
+        </div>
+        <style>
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+        </style>
+        """
+        loading_placeholder = message_placeholder.markdown(loading_html, unsafe_allow_html=True)
         
         result = st.session_state.query_engine.query(prompt)
         full_prompt = create_prompt(prompt, result)
@@ -208,7 +220,15 @@ def handle_ai_response(prompt):
         # 開始流式輸出回應
         full_response = ""
         for chunk in generate_ollama_response_stream(full_prompt):
-            full_response += chunk
+            if "<output>" in chunk:
+                # 清除之前的內容，只保留 <output> 之後的部分
+                full_response = chunk.split("<output>")[-1]
+            elif "</output>" in chunk:
+                # 結束輸出
+                full_response += chunk.split("</output>")[0]
+                break
+            else:
+                full_response += chunk
             message_placeholder.markdown(full_response + "▌")
         
         # 提取引用信息並生成縮圖
