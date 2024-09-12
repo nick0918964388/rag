@@ -76,7 +76,7 @@ def initialize_index():
 # 保留原有的 create_prompt 函數
 def create_prompt(user_input, result):
     prompt = f"""
-    任務：根據提供的上下文，對用戶的問題進行簡明且具信息量的回應。**請回答都用繁體中文回答**，當沒有答案時，請回答「我無法回答這個問題」。不要杜撰答案。
+    任務：根據提供的上下文，對用戶的問題進行簡明且具信息量的回應。**請回答都用繁體中文回答**，當沒有答案或知識庫內容不足以回答問題時，請回答「根據知識庫內的知識無法回答這個問題。」不要杜撰答案。
 
 上下文：{result.response}
 
@@ -88,17 +88,19 @@ def create_prompt(user_input, result):
 簡潔性：避免不必要的細節。
 準確性：確保事實正確。
 清晰性：使用清楚的語言。
-上下文意識：如果上下文不充分，使用一般知識作答。
+上下文意識：如果上下文不充分，明確表示無法回答。
 誠實性：若缺乏信息，請明確說明。
 引用：在回答中引用來源文件名稱和頁碼（如果有）。
 **請回答都用繁體中文回答**
 
 回應格式：
 
+<output>
 直接回答
 簡短解釋（如有必要）
 引用（格式：[文件名, 頁碼]）
 結論
+</output>
     """
     return prompt
 
@@ -219,21 +221,28 @@ def handle_ai_response(prompt):
         
         # 開始流式輸出回應
         full_response = ""
+        output_started = False
         for chunk in generate_ollama_response_stream(full_prompt):
             if "<output>" in chunk:
+                output_started = True
                 # 清除之前的內容，只保留 <output> 之後的部分
                 full_response = chunk.split("<output>")[-1]
             elif "</output>" in chunk:
                 # 結束輸出
                 full_response += chunk.split("</output>")[0]
                 break
-            else:
+            elif output_started:
                 full_response += chunk
             message_placeholder.markdown(full_response + "▌")
+        
+        # 如果沒有輸出，表示知識庫無法回答
+        if not output_started or not full_response.strip():
+            full_response = "根據知識庫內的知識無法回答這個問題。"
         
         # 提取引用信息並生成縮圖
         source_nodes = result.source_nodes
         sources = []
+        thumbnails_html = ""
         for node in source_nodes:
             metadata = node.node.metadata
             file_name = metadata.get('file_name', '未知文件')
@@ -246,15 +255,20 @@ def handle_ai_response(prompt):
                     thumbnail = generate_pdf_thumbnail(file_path, page_number)
                     if thumbnail:
                         caption = f"{file_name}, 頁碼: {page_label}"
-                        st.markdown(get_zoomable_image_html(thumbnail, caption), unsafe_allow_html=True)
+                        thumbnails_html += get_zoomable_image_html(thumbnail, caption)
                 except ValueError:
                     st.write(f"無法生成縮圖：{file_name}, 頁碼: {page_label}")
             
             sources.append(f"[{file_name}, 頁碼: {page_label}]")
         
         # 添加引用信息到完整回答
-        full_response += "\n\n引用來源：\n" + "\n".join(sources)
+        if sources:
+            full_response += "\n\n引用來源：\n" + "\n".join(sources)
+        
+        # 顯示完整回答和縮圖
         message_placeholder.markdown(full_response)
+        if thumbnails_html:
+            st.markdown(thumbnails_html, unsafe_allow_html=True)
     
     # 只在這裡添加 AI 的回應到 session_state
     st.session_state.messages.append({"role": "assistant", "content": full_response})
