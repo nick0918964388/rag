@@ -104,12 +104,12 @@ def load_index_and_engine():
     query_engine = index.as_query_engine()
     return index, query_engine
 
-# 新增函數：生成 PDF 頁面縮圖
+# 修改生成 PDF 頁面縮圖函數
 def generate_pdf_thumbnail(file_path, page_number):
     images = convert_from_path(file_path, first_page=page_number, last_page=page_number)
     if images:
         img = images[0]
-        img.thumbnail((300, 300))  # 調整縮圖大小
+        img.thumbnail((600, 600))  # 調整縮圖大小為 600x600
         return img
     return None
 
@@ -119,25 +119,66 @@ def img_to_base64(img):
     img.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode()
 
-# 新增函數：生成可縮放的圖片 HTML
+# 修改生成可縮放的圖片 HTML 函數
 def get_zoomable_image_html(img, caption):
     img_base64 = img_to_base64(img)
     return f"""
     <figure>
-        <img src="data:image/png;base64,{img_base64}" 
-             alt="{caption}" 
-             style="cursor: zoom-in;" 
-             onclick="window.open(this.src)">
+        <a href="data:image/png;base64,{img_base64}" target="_blank">
+            <img src="data:image/png;base64,{img_base64}" 
+                 alt="{caption}" 
+                 style="cursor: zoom-in; max-width: 600px; max-height: 600px;">
+        </a>
         <figcaption>{caption}</figcaption>
     </figure>
     """
+
+# 新增函數：處理 AI 回答
+def handle_ai_response(prompt):
+    with st.chat_message("assistant"):
+        message_placeholder = st.empty()
+        result = st.session_state.query_engine.query(prompt)
+        full_prompt = create_prompt(prompt, result)
+        
+        llm = TogetherLLM(
+            model="meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+            api_key="78aec3e2080904fc08729c407db1931e5851e8f03ff0fd0c4b29941340fcc8cc"
+        )
+        response = llm.complete(full_prompt)
+        
+        # 提取引用信息並生成縮圖
+        source_nodes = result.source_nodes
+        sources = []
+        for node in source_nodes:
+            metadata = node.node.metadata
+            file_name = metadata.get('file_name', '未知文件')
+            page_label = metadata.get('page_label', '未知頁碼')
+            file_path = os.path.join("./documents", file_name)
+            
+            if file_name.lower().endswith('.pdf') and os.path.exists(file_path):
+                try:
+                    page_number = int(page_label)
+                    thumbnail = generate_pdf_thumbnail(file_path, page_number)
+                    if thumbnail:
+                        caption = f"{file_name}, 頁碼: {page_label}"
+                        st.markdown(get_zoomable_image_html(thumbnail, caption), unsafe_allow_html=True)
+                except ValueError:
+                    st.write(f"無法生成縮圖：{file_name}, 頁碼: {page_label}")
+            
+            sources.append(f"[{file_name}, 頁碼: {page_label}]")
+        
+        # 組合回答和引用
+        full_response = f"{response.text}\n\n引用來源：\n" + "\n".join(sources)
+        
+        message_placeholder.markdown(full_response)
+    st.session_state.messages.append({"role": "assistant", "content": full_response})
 
 # 修改 Streamlit 應用主體
 def main():
     st.set_page_config(page_title="檢修助手", layout="wide")
     
     # 頁面標題
-    st.title("RAG 對話機器人")
+    st.title("檢修助手")
     
     # 創建一個模擬模態框的 expander
     with st.expander("文件上傳和重新索引", expanded=False):
@@ -165,9 +206,9 @@ def main():
     # 顯示歡迎信息和建議查詢內容
     if not st.session_state.messages:
         st.markdown("""
-        ## 歡迎使用 RAG 對話機器人！
+        ## 歡迎使用檢修助手！
         
-        您可以詢問任何關於上傳文檔的問題。以下是一些建議的查詢內容：
+        您可以詢問任何關於檢修的問題。以下是一些建議的查詢內容：
         """)
         suggestions = [
             "這些文檔主要討論了哪些主題？",
@@ -177,6 +218,7 @@ def main():
         for suggestion in suggestions:
             if st.button(suggestion):
                 st.session_state.messages.append({"role": "user", "content": suggestion})
+                handle_ai_response(suggestion)
 
     # 顯示聊天歷史
     for message in st.session_state.messages:
@@ -188,45 +230,7 @@ def main():
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
-
-        # 生成回答
-        with st.chat_message("assistant"):
-            message_placeholder = st.empty()
-            result = st.session_state.query_engine.query(prompt)
-            full_prompt = create_prompt(prompt, result)
-            
-            llm = TogetherLLM(
-                model="meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
-                api_key="78aec3e2080904fc08729c407db1931e5851e8f03ff0fd0c4b29941340fcc8cc"
-            )
-            response = llm.complete(full_prompt)
-            
-            # 提取引用信息並生成縮圖
-            source_nodes = result.source_nodes
-            sources = []
-            for node in source_nodes:
-                metadata = node.node.metadata
-                file_name = metadata.get('file_name', '未知文件')
-                page_label = metadata.get('page_label', '未知頁碼')
-                file_path = os.path.join("./documents", file_name)
-                
-                if file_name.lower().endswith('.pdf') and os.path.exists(file_path):
-                    try:
-                        page_number = int(page_label)
-                        thumbnail = generate_pdf_thumbnail(file_path, page_number)
-                        if thumbnail:
-                            caption = f"{file_name}, 頁碼: {page_label}"
-                            st.markdown(get_zoomable_image_html(thumbnail, caption), unsafe_allow_html=True)
-                    except ValueError:
-                        st.write(f"無法生成縮圖：{file_name}, 頁碼: {page_label}")
-                
-                sources.append(f"[{file_name}, 頁碼: {page_label}]")
-            
-            # 組合回答和引用
-            full_response = f"{response.text}\n\n引用來源：\n" + "\n".join(sources)
-            
-            message_placeholder.markdown(full_response)
-        st.session_state.messages.append({"role": "assistant", "content": full_response})
+        handle_ai_response(prompt)
 
 if __name__ == "__main__":
     main()
