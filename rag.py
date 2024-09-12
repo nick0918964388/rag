@@ -10,7 +10,39 @@ import chromadb
 
 # 保留原有的 initialize_index 函數
 def initialize_index():
-    # ... (保持不變) ...
+    # 初始化 Chroma 数据库客户端
+    db = chromadb.PersistentClient(path="./chroma_db")
+    # 获取或创建一个名为 "my-docs" 的集合
+    chroma_collection = db.get_or_create_collection("my-docs")
+    # 创建 ChromaVectorStore 实例
+    vector_store = ChromaVectorStore(chroma_collection=chroma_collection)
+    # 创建存储上下文
+    storage_context = StorageContext.from_defaults(vector_store=vector_store)
+
+    # 使用 BAAI/bge-large-en-v1.5 嵌入模型
+    embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-large-en-v1.5")
+
+    # 设置全局嵌入模型
+    Settings.embed_model = embed_model
+    Settings.llm = TogetherLLM(
+        model="meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+        api_key="78aec3e2080904fc08729c407db1931e5851e8f03ff0fd0c4b29941340fcc8cc"
+    )
+
+    # 检查集合是否已存在数据
+    if chroma_collection.count() > 0:
+        print("Loading existing index...")
+        # 如果存在，从向量存储加载索引
+        return VectorStoreIndex.from_vector_store(
+            vector_store, storage_context=storage_context
+        )
+    else:
+        print("Creating new index...")
+        # 如果不存在，从文档目录加载数据并创建新索引
+        documents = SimpleDirectoryReader("./documents").load_data()
+        return VectorStoreIndex.from_documents(
+            documents, storage_context=storage_context
+        )
 
 # 修改 create_prompt 函數
 def create_prompt(user_input, result):
@@ -71,7 +103,7 @@ def main():
         with st.chat_message("assistant"):
             message_placeholder = st.empty()
             result = query_engine.query(prompt)
-            full_prompt = create_prompt(prompt, result)
+            full_prompt = create_prompt(prompt, str(result))
             
             llm = TogetherLLM(
                 model="meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
