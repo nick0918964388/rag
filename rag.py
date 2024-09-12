@@ -75,7 +75,7 @@ def initialize_index():
 # 保留原有的 create_prompt 函數
 def create_prompt(user_input, result):
     prompt = f"""
-    任務：根據提供的上下文，對用戶的問題進行簡明且具信息量的回應。
+    任務：根據提供的上下文，對用戶的問題進行簡明且具信息量的回應。**請回答都用繁體中文回答**
 
 上下文：{result.response}
 
@@ -175,11 +175,35 @@ def generate_ollama_response(prompt):
     else:
         return f"錯誤：無法從 Ollama 獲取回應。狀態碼：{response.status_code}"
 
-# 修改 handle_ai_response 函數
+# 修改 generate_ollama_response 函數以支持流式輸出
+def generate_ollama_response_stream(prompt):
+    url = "http://ollama.webtw.xyz:11434/api/generate"
+    headers = {"Content-Type": "application/json"}
+    data = {
+        "model": "reflection",
+        "prompt": prompt,
+        "stream": True
+    }
+    
+    with requests.post(url, headers=headers, json=data, stream=True) as response:
+        if response.status_code == 200:
+            for line in response.iter_lines():
+                if line:
+                    yield json.loads(line)["response"]
+        else:
+            yield f"錯誤：無法從 Ollama 獲取回應。狀態碼：{response.status_code}"
+
+# 修改 handle_ai_response 函數以支持流式輸出
 def handle_ai_response(prompt):
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
         result = st.session_state.query_engine.query(prompt)
+        full_prompt = create_prompt(prompt, result)
+        
+        full_response = ""
+        for chunk in generate_ollama_response_stream(full_prompt):
+            full_response += chunk
+            message_placeholder.markdown(full_response + "▌")
         
         # 提取引用信息並生成縮圖
         source_nodes = result.source_nodes
@@ -202,9 +226,8 @@ def handle_ai_response(prompt):
             
             sources.append(f"[{file_name}, 頁碼: {page_label}]")
         
-        # 組合回答和引用
-        full_response = f"{result.response}\n\n引用來源：\n" + "\n".join(sources)
-        
+        # 添加引用信息到完整回答
+        full_response += "\n\n引用來源：\n" + "\n".join(sources)
         message_placeholder.markdown(full_response)
     st.session_state.messages.append({"role": "assistant", "content": full_response})
 
