@@ -49,7 +49,7 @@ def create_prompt(user_input, result):
     prompt = f"""
     任務：根據提供的上下文，對用戶的問題進行簡明且具信息量的回應。
 
-上下文：{result}
+上下文：{result.response}
 
 用戶問題：{user_input}
 
@@ -61,11 +61,12 @@ def create_prompt(user_input, result):
 清晰性：使用清楚的語言。
 上下文意識：如果上下文不充分，使用一般知識作答。
 誠實性：若缺乏信息，請明確說明。
+引用：在回答中引用來源文件名稱和頁碼（如果有）。
 回應格式：
 
 直接回答
 簡短解釋（如有必要）
-引用（如有必要）
+引用（格式：[文件名, 頁碼]）
 結論
     """
     return prompt
@@ -103,19 +104,21 @@ def load_index_and_engine():
 def main():
     st.set_page_config(page_title="RAG 對話機器人", layout="wide")
     
-    # 頁面標題和頂部功能區
+    # 頁面標題
     st.title("RAG 對話機器人")
     
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        uploaded_files = st.file_uploader("上傳文件", accept_multiple_files=True, key="file_uploader")
-        if uploaded_files:
-            handle_file_upload(uploaded_files)
-    
-    with col2:
-        if st.button("重新索引", key="reindex_button"):
-            reindex()
+    # 創建一個模擬模態框的 expander
+    with st.expander("文件上傳和重新索引", expanded=False):
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            uploaded_files = st.file_uploader("上傳文件", accept_multiple_files=True, key="file_uploader")
+            if uploaded_files:
+                handle_file_upload(uploaded_files)
+        
+        with col2:
+            if st.button("重新索引", key="reindex_button"):
+                reindex()
     
     # 初始化會話狀態
     if "messages" not in st.session_state:
@@ -142,7 +145,7 @@ def main():
         with st.chat_message("assistant"):
             message_placeholder = st.empty()
             result = st.session_state.query_engine.query(prompt)
-            full_prompt = create_prompt(prompt, str(result))
+            full_prompt = create_prompt(prompt, result)
             
             llm = TogetherLLM(
                 model="meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
@@ -150,8 +153,20 @@ def main():
             )
             response = llm.complete(full_prompt)
             
-            message_placeholder.markdown(response.text)
-        st.session_state.messages.append({"role": "assistant", "content": response.text})
+            # 提取引用信息
+            source_nodes = result.source_nodes
+            sources = []
+            for node in source_nodes:
+                metadata = node.node.metadata
+                file_name = metadata.get('file_name', '未知文件')
+                page_label = metadata.get('page_label', '未知頁碼')
+                sources.append(f"[{file_name}, 頁碼: {page_label}]")
+            
+            # 組合回答和引用
+            full_response = f"{response.text}\n\n引用來源：\n" + "\n".join(sources)
+            
+            message_placeholder.markdown(full_response)
+        st.session_state.messages.append({"role": "assistant", "content": full_response})
 
 if __name__ == "__main__":
     main()
