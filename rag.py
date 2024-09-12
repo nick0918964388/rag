@@ -7,7 +7,6 @@ from llama_index.core import Settings
 from llama_index.llms.together import TogetherLLM
 import chromadb
 import os
-from streamlit_carbon_components import carbon_button, carbon_file_uploader
 
 # 保留原有的 initialize_index 函數
 def initialize_index():
@@ -45,7 +44,7 @@ def initialize_index():
             documents, storage_context=storage_context
         )
 
-# 修改 create_prompt 函數
+# 保留原有的 create_prompt 函數
 def create_prompt(user_input, result):
     prompt = f"""
     任務：根據提供的上下文，對用戶的問題進行簡明且具信息量的回應。
@@ -71,7 +70,7 @@ def create_prompt(user_input, result):
     """
     return prompt
 
-# 新增函數：處理文件上傳
+# 修改文件上傳處理函數
 def handle_file_upload(uploaded_files):
     if uploaded_files:
         for uploaded_file in uploaded_files:
@@ -80,7 +79,7 @@ def handle_file_upload(uploaded_files):
                 f.write(uploaded_file.getbuffer())
         st.success("文件上傳成功！")
 
-# 新增函數：重新索引
+# 保留重新索引函數
 def reindex():
     # 清除現有的 Chroma 數據庫
     db = chromadb.PersistentClient(path="./chroma_db")
@@ -107,15 +106,15 @@ def main():
     # 頁面標題和頂部功能區
     st.title("RAG 對話機器人")
     
-    col1, col2, col3 = st.columns([2, 1, 1])
+    col1, col2 = st.columns([2, 1])
     
     with col1:
-        uploaded_files = carbon_file_uploader("上傳文件", accept_multiple_files=True, key="file_uploader")
+        uploaded_files = st.file_uploader("上傳文件", accept_multiple_files=True, key="file_uploader")
         if uploaded_files:
             handle_file_upload(uploaded_files)
     
     with col2:
-        if carbon_button("重新索引", key="reindex_button"):
+        if st.button("重新索引", key="reindex_button"):
             reindex()
     
     # 初始化會話狀態
