@@ -21,11 +21,10 @@ from llama_index.core.llms import (
     LLMMetadata,
 )
 from typing import Any, Optional
+from pydantic import Field
 
 class OllamaLLM(CustomLLM):
-    def __init__(self, model: str = "reflection"):
-        self.model = model
-        super().__init__()
+    model: str = Field(default="reflection")
 
     def complete(self, prompt: str, **kwargs: Any) -> CompletionResponse:
         response = generate_ollama_response(prompt)
