@@ -27,8 +27,10 @@ def initialize_index():
     # 使用 BAAI/bge-large-en-v1.5 嵌入模型
     embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-large-en-v1.5")
 
-    # 设置全局嵌入模型
+    # 設置全局嵌入模型和 LLM
     Settings.embed_model = embed_model
+    Settings.llm = OllamaLLM()  # 使用自定義的 OllamaLLM
+
     # 移除 TogetherLLM 的设置
     
     # 检查集合是否已存在数据
@@ -152,9 +154,6 @@ def handle_ai_response(prompt):
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
         result = st.session_state.query_engine.query(prompt)
-        full_prompt = create_prompt(prompt, result)
-        
-        response = generate_ollama_response(full_prompt)
         
         # 提取引用信息並生成縮圖
         source_nodes = result.source_nodes
@@ -178,7 +177,7 @@ def handle_ai_response(prompt):
             sources.append(f"[{file_name}, 頁碼: {page_label}]")
         
         # 組合回答和引用
-        full_response = f"{response}\n\n引用來源：\n" + "\n".join(sources)
+        full_response = f"{result.response}\n\n引用來源：\n" + "\n".join(sources)
         
         message_placeholder.markdown(full_response)
     st.session_state.messages.append({"role": "assistant", "content": full_response})
