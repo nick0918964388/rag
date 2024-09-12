@@ -6,3 +6,4 @@ llama-index-llms-together
 chromadb
 huggingface_hub
 together
+streamlit-carbon-components

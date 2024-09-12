@@ -5,8 +5,9 @@ from llama_index.core import StorageContext
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.core import Settings
 from llama_index.llms.together import TogetherLLM
-
 import chromadb
+import os
+from streamlit_carbon_components import carbon_button, carbon_file_uploader
 
 # 保留原有的 initialize_index 函數
 def initialize_index():
@@ -70,6 +71,28 @@ def create_prompt(user_input, result):
     """
     return prompt
 
+# 新增函數：處理文件上傳
+def handle_file_upload(uploaded_files):
+    if uploaded_files:
+        for uploaded_file in uploaded_files:
+            file_path = os.path.join("./documents", uploaded_file.name)
+            with open(file_path, "wb") as f:
+                f.write(uploaded_file.getbuffer())
+        st.success("文件上傳成功！")
+
+# 新增函數：重新索引
+def reindex():
+    # 清除現有的 Chroma 數據庫
+    db = chromadb.PersistentClient(path="./chroma_db")
+    db.delete_collection("my-docs")
+    
+    # 重新初始化索引
+    index = initialize_index()
+    query_engine = index.as_query_engine()
+    st.session_state.index = index
+    st.session_state.query_engine = query_engine
+    st.success("重新索引完成！")
+
 # 初始化索引和查詢引擎
 @st.cache_resource
 def load_index_and_engine():
@@ -77,16 +100,33 @@ def load_index_and_engine():
     query_engine = index.as_query_engine()
     return index, query_engine
 
-# Streamlit 應用主體
+# 修改 Streamlit 應用主體
 def main():
+    st.set_page_config(page_title="RAG 對話機器人", layout="wide")
+    
+    # 頁面標題和頂部功能區
     st.title("RAG 對話機器人")
-
+    
+    col1, col2, col3 = st.columns([2, 1, 1])
+    
+    with col1:
+        uploaded_files = carbon_file_uploader("上傳文件", accept_multiple_files=True, key="file_uploader")
+        if uploaded_files:
+            handle_file_upload(uploaded_files)
+    
+    with col2:
+        if carbon_button("重新索引", key="reindex_button"):
+            reindex()
+    
     # 初始化會話狀態
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
     # 加載索引和查詢引擎
-    index, query_engine = load_index_and_engine()
+    if "index" not in st.session_state or "query_engine" not in st.session_state:
+        index, query_engine = load_index_and_engine()
+        st.session_state.index = index
+        st.session_state.query_engine = query_engine
 
     # 顯示聊天歷史
     for message in st.session_state.messages:
@@ -102,7 +142,7 @@ def main():
         # 生成回答
         with st.chat_message("assistant"):
             message_placeholder = st.empty()
-            result = query_engine.query(prompt)
+            result = st.session_state.query_engine.query(prompt)
             full_prompt = create_prompt(prompt, str(result))
             
             llm = TogetherLLM(
