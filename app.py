@@ -85,14 +85,35 @@ def ask():
     user_input = request.json['question']
     prompt = create_prompt(user_input)
     
-    # 使用 TogetherLLM 進行回答
-    llm = TogetherLLM(
-        model="meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
-        api_key="78aec3e2080904fc08729c407db1931e5851e8f03ff0fd0c4b29941340fcc8cc"
+    # 配置LLM(语言模型)
+    llm_config = {
+        "config_list": [
+            # {
+            #     "model": "llama-3.1-8b-instant",
+            #     "api_key": os.getenv("GROQ_API_KEY"),
+            #     "api_type": "groq",
+            # }
+            {
+              "model": "mattshumer/reflection-70b:free",
+              "base_url": "https://openrouter.ai/api/v1",
+              "api_key": "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",
+              "cache_seed": 42
+            },
+        ]
+    }
+
+    # 创建RAG机器人代理
+    rag_agent = ConversableAgent(
+        name="RAGbot",
+        system_message="You are a RAG chatbot , 請用繁體中文回答問題",
+        llm_config=llm_config,
+        code_execution_config=False,
+        human_input_mode="NEVER",
     )
-    response = llm.complete(prompt)
+  
+    reply = rag_agent.generate_reply(messages=[{"content": prompt, "role": "user"}])
     
-    return jsonify({'answer': response.text})
+    return jsonify({'answer': reply})
 
 if __name__ == '__main__':
     app.run(debug=True)
