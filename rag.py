@@ -136,7 +136,7 @@ def generate_ollama_response(prompt):
     url = "http://ollama.webtw.xyz:11434/api/generate"
     headers = {"Content-Type": "application/json"}
     data = {
-        "model": "llama2",  # 或者您想使用的其他模型
+        "model": "reflection",  # 或者您想使用的其他模型
         "prompt": prompt,
         "stream": False
     }
