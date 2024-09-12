@@ -107,7 +107,7 @@ def ask():
     # 创建RAG机器人代理
     rag_agent = ConversableAgent(
         name="RAGbot",
-        system_message="You are a RAG chatbot , 請用繁體中文回答問題",
+        system_message="你是一個認真的RAG聊天機器人 , 請用繁體中文回答問題",
         llm_config=llm_config,
         code_execution_config=False,
         human_input_mode="NEVER",
@@ -115,7 +115,7 @@ def ask():
   
     reply = rag_agent.generate_reply(messages=[{"content": prompt, "role": "user"}])
     
-    return jsonify({'answer': reply})
+    return jsonify({'answer': reply.message})
 
 if __name__ == '__main__':
     app.run(debug=True)
