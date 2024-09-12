@@ -115,7 +115,7 @@ def ask():
   
     reply = rag_agent.generate_reply(messages=[{"content": prompt, "role": "user"}])
     
-    return jsonify({'answer': reply.message})
+    return jsonify({'answer': reply})
 
 if __name__ == '__main__':
     app.run(debug=True)
