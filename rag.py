@@ -7,6 +7,9 @@ from llama_index.core import Settings
 from llama_index.llms.together import TogetherLLM
 import chromadb
 import os
+from pdf2image import convert_from_path
+from PIL import Image
+import io
 
 # 保留原有的 initialize_index 函數
 def initialize_index():
@@ -100,6 +103,18 @@ def load_index_and_engine():
     query_engine = index.as_query_engine()
     return index, query_engine
 
+# 新增函數：生成 PDF 頁面縮圖
+def generate_pdf_thumbnail(file_path, page_number):
+    images = convert_from_path(file_path, first_page=page_number, last_page=page_number)
+    if images:
+        img = images[0]
+        img.thumbnail((300, 300))  # 調整縮圖大小
+        img_byte_arr = io.BytesIO()
+        img.save(img_byte_arr, format='PNG')
+        img_byte_arr = img_byte_arr.getvalue()
+        return img_byte_arr
+    return None
+
 # 修改 Streamlit 應用主體
 def main():
     st.set_page_config(page_title="RAG 對話機器人", layout="wide")
@@ -153,13 +168,24 @@ def main():
             )
             response = llm.complete(full_prompt)
             
-            # 提取引用信息
+            # 提取引用信息並生成縮圖
             source_nodes = result.source_nodes
             sources = []
             for node in source_nodes:
                 metadata = node.node.metadata
                 file_name = metadata.get('file_name', '未知文件')
                 page_label = metadata.get('page_label', '未知頁碼')
+                file_path = os.path.join("./documents", file_name)
+                
+                if file_name.lower().endswith('.pdf') and os.path.exists(file_path):
+                    try:
+                        page_number = int(page_label)
+                        thumbnail = generate_pdf_thumbnail(file_path, page_number)
+                        if thumbnail:
+                            st.image(thumbnail, caption=f"{file_name}, 頁碼: {page_label}", width=300)
+                    except ValueError:
+                        st.write(f"無法生成縮圖：{file_name}, 頁碼: {page_label}")
+                
                 sources.append(f"[{file_name}, 頁碼: {page_label}]")
             
             # 組合回答和引用

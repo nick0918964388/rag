@@ -6,3 +6,5 @@ llama-index-llms-together
 chromadb
 huggingface_hub
 together
+pdf2image
+Pillow
