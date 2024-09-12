@@ -12,6 +12,7 @@ import io
 import base64
 import requests
 import json
+import time
 
 # 定義 OllamaLLM 類
 from llama_index.core.llms import (
@@ -200,6 +201,12 @@ def handle_ai_response(prompt):
         result = st.session_state.query_engine.query(prompt)
         full_prompt = create_prompt(prompt, result)
         
+        # 使用 st.spinner 顯示 loading 效果
+        with st.spinner("AI 思考中..."):
+            # 模擬思考時間，可以根據需要調整
+            time.sleep(3)
+        
+        # 開始流式輸出回應
         full_response = ""
         for chunk in generate_ollama_response_stream(full_prompt):
             full_response += chunk
