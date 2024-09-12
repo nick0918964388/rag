@@ -76,7 +76,7 @@ def initialize_index():
 # 保留原有的 create_prompt 函數
 def create_prompt(user_input, result):
     prompt = f"""
-    任務：根據提供的上下文，對用戶的問題進行簡明且具信息量的回應。**請回答都用繁體中文回答**
+    任務：根據提供的上下文，對用戶的問題進行簡明且具信息量的回應。**請回答都用繁體中文回答**，當沒有答案時，請回答「我無法回答這個問題」。不要杜撰答案。
 
 上下文：{result.response}
 
@@ -285,17 +285,17 @@ def main():
                 st.session_state.messages.append({"role": "user", "content": suggestion})
                 handle_ai_response(suggestion)
 
-    # 顯示聊天歷史
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-
     # 用戶輸入
     if prompt := st.chat_input("請輸入您的問題..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
         handle_ai_response(prompt)
+
+    # 顯示聊天歷史
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
 if __name__ == "__main__":
     main()
