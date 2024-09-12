@@ -1,3 +1,4 @@
+from flask import Flask, render_template, request, jsonify
 from llama_index.core import VectorStoreIndex, SimpleDirectoryReader
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.core import StorageContext
@@ -6,8 +7,8 @@ from llama_index.core import Settings
 from llama_index.llms.together import TogetherLLM
 
 import chromadb
-import autogen
-from autogen import ConversableAgent
+
+app = Flask(__name__)
 
 # Load the data
 
@@ -71,47 +72,27 @@ def create_prompt(user_input):
 
     return prompt
 
-# 初始化索引
+# 初始化索引和查詢引擎
 index = initialize_index()
-# 创建查询引擎
 query_engine = index.as_query_engine()
-# 配置LLM(语言模型)
-llm_config = {
-    "config_list": [
-        # {
-        #     "model": "llama-3.1-8b-instant",
-        #     "api_key": os.getenv("GROQ_API_KEY"),
-        #     "api_type": "groq",
-        # }
-        {
-          "model": "mattshumer/reflection-70b:free",
-          "base_url": "https://openrouter.ai/api/v1",
-          "api_key": "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",
-          "cache_seed": 42
-        },
-    ]
-}
 
-# 创建RAG机器人代理
-rag_agent = ConversableAgent(
-    name="RAGbot",
-    system_message="You are a RAG chatbot , 請用繁體中文回答問題",
-    llm_config=llm_config,
-    code_execution_config=False,
-    human_input_mode="NEVER",
-)
+@app.route('/')
+def home():
+    return render_template('index.html')
 
-# prompt = create_prompt("Show me some samples of Knowledge Integration prompts")
-prompt = create_prompt("請總結這份文件內容")
+@app.route('/ask', methods=['POST'])
+def ask():
+    user_input = request.json['question']
+    prompt = create_prompt(user_input)
+    
+    # 使用 TogetherLLM 進行回答
+    llm = TogetherLLM(
+        model="meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+        api_key="78aec3e2080904fc08729c407db1931e5851e8f03ff0fd0c4b29941340fcc8cc"
+    )
+    response = llm.complete(prompt)
+    
+    return jsonify({'answer': response.text})
 
-reply = rag_agent.generate_reply(messages=[{"content": prompt, "role": "user"}])
-
-print("\nType of reply:", type(reply))
-print("\nContent of reply:", reply)
-
-if isinstance(reply, dict) and 'content' in reply:
-    print(f"\nRAGbot: {reply['content']}")
-elif isinstance(reply, str):
-    print(f"\nRAGbot: {reply}")
-else:
-    print("\nUnexpected reply format")
+if __name__ == '__main__':
+    app.run(debug=True)

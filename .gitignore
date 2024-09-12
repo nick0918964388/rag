@@ -1,0 +1,39 @@
+# 排除 documents 目錄
+/documents/
+
+# 其他常見的 Python 項目排除項
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 虛擬環境
+venv/
+ENV/
+
+# IDE 相關
+.vscode/
+.idea/
+
+# 操作系統相關
+.DS_Store
+Thumbs.db
+
+# Chroma 數據庫
+/chroma_db/
