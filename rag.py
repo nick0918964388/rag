@@ -198,13 +198,12 @@ def generate_ollama_response_stream(prompt):
 def handle_ai_response(prompt):
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
+        
+        # 顯示 "AI 思考中" 的 loading 效果
+        loading_placeholder = message_placeholder.markdown("AI 思考中...")
+        
         result = st.session_state.query_engine.query(prompt)
         full_prompt = create_prompt(prompt, result)
-        
-        # 使用 st.spinner 顯示 loading 效果
-        with st.spinner("AI 思考中..."):
-            # 模擬思考時間，可以根據需要調整
-            time.sleep(3)
         
         # 開始流式輸出回應
         full_response = ""
@@ -236,6 +235,8 @@ def handle_ai_response(prompt):
         # 添加引用信息到完整回答
         full_response += "\n\n引用來源：\n" + "\n".join(sources)
         message_placeholder.markdown(full_response)
+    
+    # 只在這裡添加 AI 的回應到 session_state
     st.session_state.messages.append({"role": "assistant", "content": full_response})
 
 # 修改 Streamlit 應用主體
@@ -285,17 +286,20 @@ def main():
                 st.session_state.messages.append({"role": "user", "content": suggestion})
                 handle_ai_response(suggestion)
 
+    # 顯示聊天歷史
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
     # 用戶輸入
     if prompt := st.chat_input("請輸入您的問題..."):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
-        handle_ai_response(prompt)
-
-    # 顯示聊天歷史
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+    
+    # 處理最新的用戶輸入
+    if st.session_state.messages and st.session_state.messages[-1]["role"] == "user":
+        handle_ai_response(st.session_state.messages[-1]["content"])
 
 if __name__ == "__main__":
     main()
