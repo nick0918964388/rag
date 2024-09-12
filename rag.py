@@ -4,13 +4,14 @@ from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.core import StorageContext
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.core import Settings
-from llama_index.llms.together import TogetherLLM
 import chromadb
 import os
 from pdf2image import convert_from_path
 from PIL import Image
 import io
 import base64
+import requests
+import json
 
 # 保留原有的 initialize_index 函數
 def initialize_index():
@@ -28,11 +29,8 @@ def initialize_index():
 
     # 设置全局嵌入模型
     Settings.embed_model = embed_model
-    Settings.llm = TogetherLLM(
-        model="meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
-        api_key="78aec3e2080904fc08729c407db1931e5851e8f03ff0fd0c4b29941340fcc8cc"
-    )
-
+    # 移除 TogetherLLM 的设置
+    
     # 检查集合是否已存在数据
     if chroma_collection.count() > 0:
         print("Loading existing index...")
@@ -133,18 +131,30 @@ def get_zoomable_image_html(img, caption):
     </figure>
     """
 
-# 新增函數：處理 AI 回答
+# 新增函數：使用 Ollama LLM 生成回答
+def generate_ollama_response(prompt):
+    url = "http://ollama.webtw.xyz:11434/api/generate"
+    headers = {"Content-Type": "application/json"}
+    data = {
+        "model": "llama2",  # 或者您想使用的其他模型
+        "prompt": prompt,
+        "stream": False
+    }
+    
+    response = requests.post(url, headers=headers, data=json.dumps(data))
+    if response.status_code == 200:
+        return response.json()["response"]
+    else:
+        return f"錯誤：無法從 Ollama 獲取回應。狀態碼：{response.status_code}"
+
+# 修改 handle_ai_response 函數
 def handle_ai_response(prompt):
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
         result = st.session_state.query_engine.query(prompt)
         full_prompt = create_prompt(prompt, result)
         
-        llm = TogetherLLM(
-            model="meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
-            api_key="78aec3e2080904fc08729c407db1931e5851e8f03ff0fd0c4b29941340fcc8cc"
-        )
-        response = llm.complete(full_prompt)
+        response = generate_ollama_response(full_prompt)
         
         # 提取引用信息並生成縮圖
         source_nodes = result.source_nodes
@@ -168,7 +178,7 @@ def handle_ai_response(prompt):
             sources.append(f"[{file_name}, 頁碼: {page_label}]")
         
         # 組合回答和引用
-        full_response = f"{response.text}\n\n引用來源：\n" + "\n".join(sources)
+        full_response = f"{response}\n\n引用來源：\n" + "\n".join(sources)
         
         message_placeholder.markdown(full_response)
     st.session_state.messages.append({"role": "assistant", "content": full_response})
